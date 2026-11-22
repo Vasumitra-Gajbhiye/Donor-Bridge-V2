@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Output of main.py (regenerate with: uv run python kidney_swap/main.py)
+results/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
