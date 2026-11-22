@@ -1,0 +1,15 @@
+[project]
+name = "donor-bridge-v2"
+version = "0.1.0"
+description = "Kidney swap matching for India: should 3-way swaps be allowed? A simple, beginner-readable version."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "matplotlib",
+    "networkx>=3.1",
+    "pulp==2.9.0",
+    "highspy",
+]
+
+[tool.uv]
+package = false
