@@ -1,0 +1,79 @@
+# Runs the check scripts from simple_plan/checks/ on every pull request.
+#
+# Each person only gets the checks for the files their PR changes.
+# Example: a PR that edits kidney_swap/pool.py runs check_pool.py and nothing else.
+# Checks for files the PR did not touch show up as "skipped" (grey), which is fine.
+#
+# A red cross means a check printed FAIL. Open the job on GitHub to see the same
+# output you get locally with:  uv run python simple_plan/checks/check_<name>.py
+#
+# Note: if your file imports someone else's file that is not on main yet
+# (for example greedy.py needs rings.py), your check fails with
+# "it imports 'rings', which does not exist yet". Wait for that PR to be merged.
+
+name: Checks
+
+on:
+  pull_request:
+  # Lets the Lead run every check by hand: Actions tab -> Checks -> Run workflow
+  workflow_dispatch:
+
+jobs:
+  # Step 1: work out which kidney_swap/ files this PR changed.
+  changed-files:
+    runs-on: ubuntu-latest
+    outputs:
+      pool: ${{ steps.filter.outputs.pool }}
+      rings: ${{ steps.filter.outputs.rings }}
+      greedy: ${{ steps.filter.outputs.greedy }}
+      exact: ${{ steps.filter.outputs.exact }}
+      ilp: ${{ steps.filter.outputs.ilp }}
+      sweep: ${{ steps.filter.outputs.sweep }}
+      demo: ${{ steps.filter.outputs.demo }}
+      lead: ${{ steps.filter.outputs.lead }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            pool:   kidney_swap/pool.py
+            rings:  kidney_swap/rings.py
+            greedy: kidney_swap/greedy.py
+            exact:  kidney_swap/exact.py
+            ilp:    kidney_swap/ilp.py
+            sweep:  kidney_swap/sweep.py
+            demo:   kidney_swap/demo.py
+            lead:
+              - kidney_swap/compare_solvers.py
+              - kidney_swap/main.py
+
+  # Step 2: one job per check. Each runs only if its file changed.
+  # "matrix" means: run the same steps once for every entry in the list below.
+  check:
+    needs: changed-files
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false   # one person's red check must not cancel the others
+      matrix:
+        include:
+          - { name: "pool.py (Generator)",                    key: pool,   script: check_pool.py }
+          - { name: "rings.py (Matching)",                    key: rings,  script: check_rings.py }
+          - { name: "greedy.py (Heuristics)",                 key: greedy, script: check_greedy.py }
+          - { name: "exact.py (Heuristics)",                  key: exact,  script: check_exact.py }
+          - { name: "ilp.py (Lead)",                          key: ilp,    script: check_ilp.py }
+          - { name: "sweep.py (Simulation)",                  key: sweep,  script: check_sweep.py }
+          - { name: "demo.py (Matching)",                     key: demo,   script: check_demo.py }
+          - { name: "compare_solvers.py + main.py (Lead)",    key: lead,   script: check_lead.py }
+    name: ${{ matrix.name }}
+    steps:
+      - name: Skip (this PR did not change the file)
+        if: needs.changed-files.outputs[matrix.key] != 'true' && github.event_name != 'workflow_dispatch'
+        run: echo "Not changed in this PR, nothing to check."
+      - uses: actions/checkout@v7
+        if: needs.changed-files.outputs[matrix.key] == 'true' || github.event_name == 'workflow_dispatch'
+      - uses: astral-sh/setup-uv@v10.4.0
+        if: needs.changed-files.outputs[matrix.key] == 'true' || github.event_name == 'workflow_dispatch'
+      - name: Run ${{ matrix.script }}
+        if: needs.changed-files.outputs[matrix.key] == 'true' || github.event_name == 'workflow_dispatch'
+        run: uv run python simple_plan/checks/${{ matrix.script }}
